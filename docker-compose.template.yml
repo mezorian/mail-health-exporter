@@ -1,0 +1,68 @@
+version: '3.8'
+
+# deactivate the following 5 lines if you don't want to use docker secrets
+# but prefer to work with environment variables (maybe not as secure)
+secrets:
+  internal_email_password:
+    external: true
+  external_email_password:
+    external: true
+
+services:
+  mail-health-exporter:
+    build: .
+    image: mail-health-exporter  # Name of the image you want to build
+    container_name: mail-health-exporter
+    restart: unless-stopped
+    ports:
+      - "9091:9091"
+    # deactivate the following 3 lines if you don't want to use docker secrets
+    # but prefer to work with environment variables (maybe not as secure)
+    secrets:
+      - internal_email_password
+      - external_email_password
+    environment:
+      # Force python to write logs immediately without buffering them
+      - PYTHONUNBUFFERED=1
+
+      # Internal mail server configuration
+      - INTERNAL_SMTP_SERVER=my-mail-server.com
+      - INTERNAL_SMTP_PORT=465
+      - INTERNAL_SMTP_USE_TLS=true
+      - INTERNAL_IMAP_SERVER=my-mail-server.com
+      - INTERNAL_IMAP_PORT=993
+      - INTERNAL_IMAP_USE_SSL=true
+      - INTERNAL_EMAIL_ADDRESS=mail-monitoring@my-mail-server.com
+      # activate the following line if you don't want to use docker secrets
+      # but prefer to work with environment variables (maybe not as secure)
+      #- INTERNAL_EMAIL_PASSWORD=TYPE_YOUR_PASSWORD_HERE
+
+      # External mail server configuration
+      - EXTERNAL_SMTP_SERVER=smtp.gmail.com
+      - EXTERNAL_SMTP_PORT=465
+      - EXTERNAL_SMTP_USE_TLS=true
+      - EXTERNAL_IMAP_SERVER=imap.gmail.com
+      - EXTERNAL_IMAP_PORT=993
+      - EXTERNAL_IMAP_USE_SSL=true
+      - EXTERNAL_EMAIL_ADDRESS=mail-monitoring@gmail.com
+      # activate the following line if you don't want to use docker secrets
+      # but prefer to work with environment variables (maybe not as secure)
+      #- EXTERNAL_EMAIL_PASSWORD=TYPE_YOUR_PASSWORD_HERE
+
+      # Spam score test configuration
+      - SPAM_SCORE_TEST_EMAIL_ADDRESS=test-YOUR_ID@srv1.mail-tester.com
+      - SPAM_SCORE_TEST_URL=https://www.mail-tester.com/test-YOUR_ID
+
+      # Test configuration
+      - CHECK_INTERVAL_SECONDS=300
+      - TIMEOUT_SECONDS=120
+
+      # Prometheus configuration
+      - PROMETHEUS_PORT=9091
+
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9091/metrics')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
