@@ -8,11 +8,21 @@ The health-check is a 2 steps process:
 
 For a more detailed explanation what each step is doing see below
 
-After each health-check the program will export its results in Prometheus exposition format and offers them over a http endpoint at http://localhost:9091/metrics 
-
+After each health-check the program will export its results in two formats:
+- **Prometheus metrics** at http://localhost:9091/metrics for monitoring systems
+- **Web dashboard** at http://localhost:9091/status showing a human-readable status page
 
 The health-check is performed every 5 minutes, the spam-score check only every 6 hours.
 
+## Monitoring Endpoints
+
+The service provides two HTTP endpoints:
+
+- **`/metrics`** - Prometheus exposition format for scraping by monitoring systems
+- **`/status`** - Web dashboard displaying:
+  - Whether the mail-server is able to send messages
+  - Whether the mail-server is able to receive messages
+  - Current spam-score of sent messages by the server
 
 ## Quick Start
 
@@ -92,7 +102,9 @@ docker-compose ps
 docker-compose logs mail-health-exporter
 ```
 
-Access metrics at: `http://localhost:9091/metrics`
+Access the monitoring interfaces:
+- **Metrics**: `http://localhost:9091/metrics`
+- **Status Dashboard**: `http://localhost:9091/status`
 
 ---
 
@@ -126,7 +138,9 @@ Click **Deploy the stack**
 
 1. Check the stack status in Portainer
 2. View container logs
-3. Access metrics at: `http://localhost:9091/metrics`
+3. Access the monitoring interfaces:
+   - **Metrics**: `http://localhost:9091/metrics`
+   - **Status Dashboard**: `http://localhost:9091/status`
 
 ## Password Configuration
 
@@ -157,6 +171,11 @@ Click **Deploy the stack**
    - Verify all required environment variables are set
    - Ensure secrets are properly created (if using Docker secrets)
 
+4. **Web Interface Issues**:
+   - Verify port 9091 is accessible
+   - Check firewall rules for HTTP access
+   - Ensure the service is healthy using `docker-compose ps`
+
 ### Logs
 
 View container logs:
@@ -175,13 +194,23 @@ The container includes a health check that verifies the metrics endpoint is acce
 docker-compose ps  # Shows health status
 ```
 
+You can also manually verify both endpoints are working:
+```bash
+# Check metrics endpoint
+curl http://localhost:9091/metrics
+
+# Check status dashboard (returns HTML)
+curl http://localhost:9091/status
+```
+
 ## Security Considerations
 
 - **Use Docker Secrets** when possible for production deployments
-- **Restrict network access** to the metrics port (9091)
+- **Restrict network access** to the monitoring ports (9091) - consider using a reverse proxy
 - **Use dedicated monitoring email accounts** with minimal privileges
 - **Regularly rotate passwords** used for monitoring
 - **Monitor the monitoring service** - set up alerts for when this service fails
+- **Secure the web dashboard** - consider adding authentication if exposing publicly
 
 # What is the Health-Check doing? 
 
