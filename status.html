@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mail Server Health Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            color: white;
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Animated background particles */
+        .bg-particles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 0;
+        }
+
+        .particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: rgba(64, 224, 208, 0.3);
+            border-radius: 50%;
+            animation: float 20s infinite linear;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-100px) rotate(360deg); opacity: 0; }
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: slideDown 1s ease-out;
+        }
+
+        .title {
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 800;
+            background: linear-gradient(135deg, #40e0d0, #48cae4, #0077b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 0 30px rgba(64, 224, 208, 0.3);
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 300;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .status-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 2rem;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.320, 1.275);
+            animation: slideUp 1s ease-out;
+        }
+
+        .status-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 60px rgba(64, 224, 208, 0.2);
+            border-color: rgba(64, 224, 208, 0.3);
+        }
+
+        .status-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #40e0d0, #48cae4);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .status-card:hover::before {
+            opacity: 1;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 1rem;
+            font-size: 1.5rem;
+        }
+
+        .card-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: white;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+        }
+
+        .status-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s;
+        }
+
+        .status-online {
+            background: linear-gradient(135deg, #00f5a0, #00d9f5);
+            color: #003d2e;
+            box-shadow: 0 0 20px rgba(0, 245, 160, 0.3);
+        }
+
+        .status-offline {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+            color: white;
+            box-shadow: 0 0 20px rgba(255, 107, 107, 0.3);
+        }
+
+        .pulse {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .pulse-green {
+            background: #00f5a0;
+        }
+
+        .pulse-red {
+            background: #ff6b6b;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        /* Timestamp styling */
+        .timestamp {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.5);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .timestamp-icon {
+            font-size: 0.8rem;
+        }
+
+        .timestamp-text {
+            font-weight: 400;
+        }
+
+        /* Spam Score Gauge - Car Speedometer Style */
+        .gauge-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 1rem;
+        }
+
+        .gauge {
+            position: relative;
+            width: 280px;
+            height: 180px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .speedometer {
+            position: relative;
+            width: 280px;
+            height: 140px;
+            background: radial-gradient(circle at 50% 100%, 
+                rgba(20, 20, 40, 0.95) 0%, 
+                rgba(10, 10, 25, 0.98) 70%, 
+                rgba(5, 5, 15, 1) 100%);
+            border-radius: 140px 140px 0 0;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            border-bottom: none;
+            box-shadow: 
+                inset 0 0 30px rgba(0, 0, 0, 0.5),
+                0 0 20px rgba(64, 224, 208, 0.1);
+            overflow: hidden;
+        }
+
+        .gauge-svg {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 260px;
+            height: 130px;
+        }
+
+        .gauge-bg-arc {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.1);
+            stroke-width: 6;
+        }
+
+        .gauge-fill-arc {
+            fill: none;
+            stroke-width: 6;
+            transition: all 1.2s cubic-bezier(0.175, 0.885, 0.320, 1.275);
+            filter: drop-shadow(0 0 8px currentColor);
+        }
+
+        .gauge-ticks {
+            stroke: rgba(255, 255, 255, 0.4);
+            stroke-width: 2;
+        }
+
+        .gauge-major-ticks {
+            stroke: rgba(255, 255, 255, 0.7);
+            stroke-width: 3;
+        }
+
+        .gauge-needle {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            width: 4px;
+            height: 100px;
+            background: linear-gradient(to top, #ff4444, #ffffff);
+            transform-origin: bottom center;
+            transition: transform 1.2s cubic-bezier(0.175, 0.885, 0.320, 1.275);
+            border-radius: 2px 2px 0 0;
+            margin-left: -2px;
+            box-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
+            z-index: 10;
+        }
+
+        .gauge-needle::before {
+            content: '';
+            position: absolute;
+            top: -8px;
+            left: -4px;
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 16px solid #ff4444;
+            filter: drop-shadow(0 0 4px rgba(255, 68, 68, 0.8));
+        }
+
+        .gauge-center {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 20px;
+            height: 20px;
+            background: radial-gradient(circle, #ffffff, #cccccc);
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 
+                0 0 10px rgba(255, 255, 255, 0.3),
+                inset 0 0 5px rgba(0, 0, 0, 0.2);
+            z-index: 15;
+        }
+
+        .gauge-value {
+            position: absolute;
+            bottom: 35px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #ffffff;
+            text-shadow: 0 0 10px currentColor;
+            z-index: 5;
+        }
+
+        .gauge-labels {
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            justify-content: space-between;
+            width: 240px;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 600;
+        }
+
+        .gauge-title {
+            position: absolute;
+            bottom: 55px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: 400;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .gauge-timestamp {
+            margin-top: 1rem;
+            text-align: center;
+        }
+
+        .refresh-btn {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #40e0d0, #48cae4);
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(64, 224, 208, 0.3);
+            transition: all 0.3s;
+            z-index: 10;
+        }
+
+        .refresh-btn:hover {
+            transform: scale(1.1) rotate(180deg);
+            box-shadow: 0 6px 30px rgba(64, 224, 208, 0.5);
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @media (max-width: 768px) {
+            .status-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-particles" id="particles"></div>
+    
+    <div class="container">
+        <div class="header">
+            <h1 class="title">Mail Server Status</h1>
+            <p class="subtitle">Real-time health monitoring dashboard</p>
+        </div>
+
+        <div class="status-grid">
+            <div class="status-card">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #40e0d0, #48cae4);">
+                        📤
+                    </div>
+                    <h3 class="card-title">Outbound Mail</h3>
+                </div>
+                <div class="status-indicator">
+                    <span>Sending Status</span>
+                    <div class="status-badge status-online" id="sending-status">
+                        <div class="pulse pulse-green"></div>
+                        Online
+                    </div>
+                </div>
+                <div class="timestamp">
+                    <span class="timestamp-icon">🕒</span>
+                    <span class="timestamp-text">Last updated: <span id="sending-timestamp">--</span></span>
+                </div>
+            </div>
+
+            <div class="status-card">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #48cae4, #0077b6);">
+                        📨
+                    </div>
+                    <h3 class="card-title">Inbound Mail</h3>
+                </div>
+                <div class="status-indicator">
+                    <span>Receiving Status</span>
+                    <div class="status-badge status-online" id="receiving-status">
+                        <div class="pulse pulse-green"></div>
+                        Online
+                    </div>
+                </div>
+                <div class="timestamp">
+                    <span class="timestamp-icon">🕒</span>
+                    <span class="timestamp-text">Last updated: <span id="receiving-timestamp">--</span></span>
+                </div>
+            </div>
+
+            <div class="status-card" style="grid-column: 1 / -1;">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #0077b6, #023e8a);">
+                        🛡️
+                    </div>
+                    <h3 class="card-title">Spam Score Rating</h3>
+                </div>
+                <div class="gauge-container">
+                    <div class="gauge">
+                        <div class="speedometer">
+                            <svg class="gauge-svg" viewBox="0 0 260 130">
+                                <!-- Background arc -->
+                                <path class="gauge-bg-arc" d="M 30 110 A 100 100 0 0 1 230 110" />
+                                
+                                <!-- Tick marks -->
+                                <g class="gauge-ticks">
+                                    <!-- Minor ticks -->
+                                    <line x1="40" y1="115" x2="45" y2="110" />
+                                    <line x1="50" y1="125" x2="55" y2="118" />
+                                    <line x1="65" y1="135" x2="70" y2="127" />
+                                    <line x1="85" y1="142" x2="90" y2="134" />
+                                    <line x1="105" y1="145" x2="110" y2="137" />
+                                    <line x1="125" y1="147" x2="130" y2="139" />
+                                    <line x1="145" y1="147" x2="150" y2="139" />
+                                    <line x1="165" y1="145" x2="170" y2="137" />
+                                    <line x1="185" y1="142" x2="190" y2="134" />
+                                    <line x1="205" y1="135" x2="210" y2="127" />
+                                    <line x1="220" y1="125" x2="225" y2="118" />
+                                </g>
+                                
+                                <!-- Major ticks -->
+                                <g class="gauge-major-ticks">
+                                    <line x1="30" y1="110" x2="38" y2="105" />
+                                    <line x1="75" y1="140" x2="83" y2="132" />
+                                    <line x1="130" y1="150" x2="130" y2="140" />
+                                    <line x1="185" y1="140" x2="177" y2="132" />
+                                    <line x1="230" y1="110" x2="222" y2="105" />
+                                </g>
+                                
+                                <!-- Colored fill arc -->
+                                <path class="gauge-fill-arc" id="gauge-fill-arc" 
+                                      d="M 30 110 A 100 100 0 0 1 230 110" 
+                                      stroke-dasharray="314" stroke-dashoffset="314" />
+                            </svg>
+                            
+                            <div class="gauge-needle" id="gauge-needle"></div>
+                            <div class="gauge-center"></div>
+                            <div class="gauge-title">Spam Score</div>
+                            <div class="gauge-value" id="gauge-value">7</div>
+                        </div>
+                        <div class="gauge-labels">
+                            <span>1</span>
+                            <span>3</span>
+                            <span>5</span>
+                            <span>7</span>
+                            <span>10</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="gauge-timestamp">
+                    <div class="timestamp">
+                        <span class="timestamp-icon">🕒</span>
+                        <span class="timestamp-text">Last updated: <span id="spam-timestamp">--</span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="refresh-btn" onclick="refreshData()" title="Refresh Status">
+        🔄
+    </button>
+
+    <script>
+        // Sample data - replace with your actual API calls
+        let mailServerData = {
+            sendingWorks: true,
+            receivingWorks: true,
+            spamScore: 7,
+            lastUpdated: {
+                sending: 1749864679.0018654,
+                receiving: 1749864679.0018654,
+                spam: 1749864679.0018654
+            }
+        };
+
+        // Format timestamp for display
+        function formatTimestamp(timestamp) {
+            if (!timestamp) return '--';
+            
+            // Convert Unix timestamp to Date object
+            // Handle both seconds and milliseconds timestamps
+            let date;
+            if (typeof timestamp === 'number') {
+                // If timestamp is in seconds (like 1749864679.0018654), convert to milliseconds
+                date = new Date(timestamp * 1000);
+            } else if (timestamp instanceof Date) {
+                date = timestamp;
+            } else {
+                return '--';
+            }
+            
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+
+            if (diffMins < 1) return 'Just now';
+            if (diffMins < 60) return `${diffMins}m ago`;
+            if (diffHours < 24) return `${diffHours}h ago`;
+            if (diffDays < 7) return `${diffDays}d ago`;
+            
+            // For older dates, show full timestamp
+            return date.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // Create floating particles
+        function createParticles() {
+            const particlesContainer = document.getElementById('particles');
+            const particleCount = 50;
+
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 20 + 's';
+                particle.style.animationDuration = (15 + Math.random() * 10) + 's';
+                particlesContainer.appendChild(particle);
+            }
+        }
+
+        // Update status indicators
+        function updateStatus() {
+            const sendingElement = document.getElementById('sending-status');
+            const receivingElement = document.getElementById('receiving-status');
+            const sendingTimestamp = document.getElementById('sending-timestamp');
+            const receivingTimestamp = document.getElementById('receiving-timestamp');
+            const spamTimestamp = document.getElementById('spam-timestamp');
+
+            // Update sending status
+            if (mailServerData.sendingWorks) {
+                sendingElement.className = 'status-badge status-online';
+                sendingElement.innerHTML = '<div class="pulse pulse-green"></div>Online';
+            } else {
+                sendingElement.className = 'status-badge status-offline';
+                sendingElement.innerHTML = '<div class="pulse pulse-red"></div>Offline';
+            }
+
+            // Update receiving status
+            if (mailServerData.receivingWorks) {
+                receivingElement.className = 'status-badge status-online';
+                receivingElement.innerHTML = '<div class="pulse pulse-green"></div>Online';
+            } else {
+                receivingElement.className = 'status-badge status-offline';
+                receivingElement.innerHTML = '<div class="pulse pulse-red"></div>Offline';
+            }
+
+            // Update timestamps
+            sendingTimestamp.textContent = formatTimestamp(mailServerData.lastUpdated.sending);
+            receivingTimestamp.textContent = formatTimestamp(mailServerData.lastUpdated.receiving);
+            spamTimestamp.textContent = formatTimestamp(mailServerData.lastUpdated.spam);
+
+            // Update spam score gauge
+            updateGauge(mailServerData.spamScore);
+        }
+
+        // Update the spam score gauge
+        function updateGauge(score) {
+            const gaugeFillArc = document.getElementById('gauge-fill-arc');
+            const gaugeNeedle = document.getElementById('gauge-needle');
+            const gaugeValue = document.getElementById('gauge-value');
+
+            // Calculate angle for needle (from -90 to +90 degrees)
+            const angle = (score / 10) * 180 - 90;
+            
+            // Color based on score (10 = green/good, 1 = red/bad)
+            let color;
+            if (score >= 8) color = '#00f5a0'; // Green for high scores (good)
+            else if (score >= 5) color = '#ffd60a'; // Yellow for medium scores
+            else color = '#ff6b6b'; // Red for low scores (bad)
+
+            // Calculate the stroke dash offset for the arc fill
+            const pathLength = 314; // Total arc length
+            const fillLength = (score / 10) * pathLength;
+            const dashOffset = pathLength - fillLength;
+
+            // Update the arc fill
+            gaugeFillArc.style.stroke = color;
+            gaugeFillArc.style.strokeDashoffset = dashOffset;
+            
+            // Update needle position
+            gaugeNeedle.style.transform = `rotate(${angle}deg)`;
+            
+            // Update value display
+            gaugeValue.textContent = score;
+            gaugeValue.style.color = color;
+            
+            // Add glow effect to needle based on score
+            if (score >= 8) {
+                gaugeNeedle.style.background = 'linear-gradient(to top, #00f5a0, #ffffff)';
+                gaugeNeedle.style.boxShadow = '0 0 15px rgba(0, 245, 160, 0.8)';
+            } else if (score >= 5) {
+                gaugeNeedle.style.background = 'linear-gradient(to top, #ffd60a, #ffffff)';
+                gaugeNeedle.style.boxShadow = '0 0 15px rgba(255, 214, 10, 0.8)';
+            } else {
+                gaugeNeedle.style.background = 'linear-gradient(to top, #ff6b6b, #ffffff)';
+                gaugeNeedle.style.boxShadow = '0 0 15px rgba(255, 107, 107, 0.8)';
+            }
+        }
+
+        // Simulate data refresh (replace with actual API call)
+        function refreshData() {
+
+            updateStatus();
+
+            // Add refresh animation
+            const btn = document.querySelector('.refresh-btn');
+            btn.style.transform = 'scale(1.1) rotate(360deg)';
+            setTimeout(() => {
+                btn.style.transform = 'scale(1) rotate(0deg)';
+            }, 300);
+        }
+
+        // Update timestamps periodically to show relative time
+        function updateTimestampDisplay() {
+            const sendingTimestamp = document.getElementById('sending-timestamp');
+            const receivingTimestamp = document.getElementById('receiving-timestamp');
+            const spamTimestamp = document.getElementById('spam-timestamp');
+
+            sendingTimestamp.textContent = formatTimestamp(mailServerData.lastUpdated.sending);
+            receivingTimestamp.textContent = formatTimestamp(mailServerData.lastUpdated.receiving);
+            spamTimestamp.textContent = formatTimestamp(mailServerData.lastUpdated.spam);
+        }
+
+        // Initialize the dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            createParticles();
+            
+            // Initial timestamps are already set in mailServerData
+            updateStatus();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(refreshData, 30000);
+            
+            // Update timestamp display every minute
+            setInterval(updateTimestampDisplay, 60000);
+        });
+
+        // Add some interactive hover effects
+        document.querySelectorAll('.status-card').forEach(card => {
+            card.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-8px) scale(1.02)';
+            });
+            
+            card.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0) scale(1)';
+            });
+        });
+    </script>
+</body>
+</html>

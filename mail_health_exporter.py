@@ -192,21 +192,43 @@ class MetricsStore:
 
             return '\n'.join(output)
 
+    def get_status_data(self) -> dict:
+        """
+        Get current metrics data for the status page.
 
-class PrometheusHandler(BaseHTTPRequestHandler):
+        Returns
+        -------
+        dict
+            Dictionary containing sendingWorks, receivingWorks, and spamScore values
+        """
+        with self.lock:
+            return {
+                'sendingWorks': bool(self.metrics['mail_health_exporter__sending_mails_working']),
+                'receivingWorks': bool(self.metrics['mail_health_exporter__receiving_mails_working']),
+                'spamScore': int(self.metrics['mail_health_exporter__spam_score']),
+                'sendingWorksLastUpdated': float(self.metrics['mail_health_exporter__last_send_receive_check_timestamp']),
+                'receivingWorksLastUpdated': float(
+                    self.metrics['mail_health_exporter__last_send_receive_check_timestamp']),
+                'spamScoreLastUpdated': float(
+                    self.metrics['mail_health_exporter__last_spam_score_check_timestamp'])
+            }
+
+
+class HTTPHandler(BaseHTTPRequestHandler):
     """
-    HTTP request handler for Prometheus metrics endpoint.
+    HTTP request handler for Prometheus metrics endpoint and status page.
 
-    Handles GET requests to /metrics endpoint and returns Prometheus-formatted
-    metrics data. All other requests return 404.
+    Handles GET requests to /metrics endpoint and /status endpoint, returns 404 for others.
 
     Attributes
     ----------
     metrics_store : MetricsStore
         Reference to the metrics storage instance
+    status_html : str
+        The HTML content for the status page
     """
 
-    def __init__(self, request, client_address, server, metrics_store: MetricsStore = None):
+    def __init__(self, request, client_address, server, metrics_store: MetricsStore = None, status_html_template: str = "Put your html here"):
         """
         Initialize the HTTP request handler.
 
@@ -220,21 +242,33 @@ class PrometheusHandler(BaseHTTPRequestHandler):
             The HTTP server instance
         metrics_store : MetricsStore, optional
             Reference to metrics storage, by default None
+        status_html_template : str, optional
+            HTML content for status page, by default "Put your html here"
+            This variable describes the template html.
+            Each Get-request will use this template and update it according
+            current values in the metrics store
         """
         self.metrics_store = metrics_store
+        self.status_html_template = status_html_template
         super().__init__(request, client_address, server)
 
     def do_GET(self) -> None:
         """
         Handle GET requests.
 
-        Serves Prometheus metrics on /metrics endpoint, returns 404 for all other paths.
+        Serves Prometheus metrics on /metrics endpoint, status page on /status endpoint,
+        returns 404 for all other paths.
         """
         if self.path == '/metrics':
             self.send_response(200)
             self.send_header('Content-type', 'text/plain; charset=utf-8')
             self.end_headers()
             self.wfile.write(self.metrics_store.get_prometheus_format().encode('utf-8'))
+        elif self.path == '/status':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(self._get_updated_status_html().encode('utf-8'))
         else:
             self.send_response(404)
             self.end_headers()
@@ -253,6 +287,37 @@ class PrometheusHandler(BaseHTTPRequestHandler):
         # Suppress default HTTP server logging
         pass
 
+    def _get_updated_status_html(self) -> str:
+        """
+        Update the HTML template with current metrics data.
+
+        Replaces the mailServerData JavaScript object in the HTML template
+        with current values from the metrics store.
+
+        Returns
+        -------
+        str
+            Updated HTML content with current metrics data
+        """
+        status_data = self.metrics_store.get_status_data()
+
+        # Create the replacement JavaScript object
+        replacement_js = f"""let mailServerData = {{
+    sendingWorks: {str(status_data['sendingWorks']).lower()},
+    receivingWorks: {str(status_data['receivingWorks']).lower()},
+    spamScore: {status_data['spamScore']},
+    lastUpdated: {{
+                sending: {status_data['sendingWorksLastUpdated']},
+                receiving: {status_data['receivingWorksLastUpdated']},
+                spam: {status_data['spamScoreLastUpdated']}
+            }}
+}};"""
+
+        # Use regex to replace the existing mailServerData object
+        pattern = r'let\s+mailServerData\s*=\s*\{(?:[^{}]*(?:\{[^{}]*\})*)*\};'
+        updated_html = re.sub(pattern, replacement_js, self.status_html_template, flags=re.MULTILINE | re.DOTALL)
+
+        return updated_html
 
 # ===== MAIN APPLICATION CLASS =====
 
@@ -272,6 +337,10 @@ class MailHealthExporter:
         Application logger
     running : bool
         Service running state flag
+    status_html_template : str
+        HTML template for the status page
+    status_html_file : str
+        Path to the status HTML file
     internal_smtp_server : str
         Internal SMTP server hostname
     internal_smtp_port : int
@@ -333,6 +402,10 @@ class MailHealthExporter:
         self.metrics = MetricsStore()
         self.logger = self._setup_logging()
         self.running = False
+        self.status_html_template = ""
+        
+        # Status HTML file configuration
+        self.status_html_file = os.getenv('STATUS_HTML_FILE', 'status.html')
 
         # Internal mail server configuration
         self.internal_smtp_server = os.getenv('INTERNAL_SMTP_SERVER')
@@ -364,7 +437,7 @@ class MailHealthExporter:
         self.timeout_seconds = int(os.getenv('TIMEOUT_SECONDS', '60'))
 
         # Prometheus configuration
-        self.metrics_port = int(os.getenv('PROMETHEUS_PORT', '9091'))
+        self.metrics_port = int(os.getenv('HTTP_PORT', '9091'))
 
         # Validate required environment variables
         required_vars = [
@@ -385,7 +458,34 @@ class MailHealthExporter:
         if not self.external_email_password:
             raise ValueError("Missing required secret: external_email_password")
 
+        # Load status HTML template
+        self._load_status_html_template()
+
     # ===== CONFIGURATION AND SETUP METHODS =====
+
+    def _load_status_html_template(self) -> None:
+        """
+        Load the HTML template for the status page from file.
+
+        Reads the HTML file specified in STATUS_HTML_FILE environment variable
+        (defaults to 'status.html') and stores it as a template for serving
+        at the /status endpoint.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the status HTML file cannot be found
+        """
+        try:
+            with open(self.status_html_file, 'r', encoding='utf-8') as f:
+                self.status_html_template = f.read()
+            self.logger.info(f'Successfully loaded status HTML template from {self.status_html_file}')
+        except FileNotFoundError:
+            self.logger.error(f'Status HTML file not found: {self.status_html_file}')
+            raise
+        except Exception as e:
+            self.logger.error(f'Error loading status HTML template: {e}')
+            raise
 
     def _read_password_from_docker_secret(self, secret_name: str) -> Optional[str]:
         """
@@ -840,7 +940,7 @@ class MailHealthExporter:
 
         # Create a handler factory that includes the metrics store
         def handler_factory(request, client_address, server):
-            return PrometheusHandler(request, client_address, server, self.metrics)
+            return HTTPHandler(request, client_address, server, self.metrics, self.status_html_template)
 
         server = HTTPServer(('0.0.0.0', self.metrics_port), handler_factory)
 

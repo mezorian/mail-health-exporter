@@ -57,8 +57,9 @@ services:
       - CHECK_INTERVAL_SECONDS=300
       - TIMEOUT_SECONDS=120
 
-      # Prometheus configuration
-      - PROMETHEUS_PORT=9091
+      # http-server configuration
+      - HTTP_PORT=9091
+      - STATUS_HTML_FILE=status.html
 
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9091/metrics')\""]

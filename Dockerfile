@@ -13,6 +13,7 @@ WORKDIR /etc/mail-health-exporter
 
 # Copy application files
 COPY mail_health_exporter.py .
+COPY status.html .
 RUN chown -R mail-health-exporter:mail-health-exporter /etc/mail-health-exporter
 
 # Switch to non-root user
