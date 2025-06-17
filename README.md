@@ -12,7 +12,7 @@ After each health-check the program will export its results in two formats:
 - **Prometheus metrics** at http://localhost:9091/metrics for monitoring systems
 - **Web dashboard** at http://localhost:9091/status showing a human-readable status page
 
-The health-check is performed every 5 minutes, the spam-score check only every 6 hours.
+The health-check is performed every 5 minutes, the spam-score check only every 8 hours.
 
 ## Monitoring Endpoints
 
