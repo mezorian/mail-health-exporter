@@ -812,6 +812,8 @@ class MailHealthExporter:
                 match_score_value = re.search(r'\d+', match_full_score_text.group(1))
                 score = int(match_score_value.group())
                 self.logger.info(f"Successfully parsed score: {score}")
+            else:
+                self.logger.error(f"Failed to parse score from html: {text_content}")
 
         except requests.RequestException as e:
             self.logger.error(f"Error fetching URL: {e}")
@@ -874,12 +876,12 @@ class MailHealthExporter:
         Run spam score test by sending email to a spam testing service.
 
         This method performs spam score testing with rate limiting:
-        1. Checks if at least 6 hours have passed since the last spam test
+        1. Checks if at least 8 hours have passed since the last spam test
         2. If enough time has passed, sends a test email to spam testing service
         3. Retrieves and records the spam score from the testing service
         4. Updates the last check timestamp
 
-        The 6-hour rate limit prevents excessive API calls to the spam testing
+        The 8-hour rate limit prevents excessive API calls to the spam testing
         service while ensuring regular monitoring of email deliverability.
 
         Parameters
@@ -892,8 +894,8 @@ class MailHealthExporter:
         """
         current_time = datetime.now()
 
-        # If the function hasn't run for at least 6 hours
-        if (current_time - self.last_spam_score_check_timestamp).total_seconds() >= 6 * 60 * 60:
+        # If the function hasn't run for at least 8 hours
+        if (current_time - self.last_spam_score_check_timestamp).total_seconds() >= 8 * 60 * 60:
             self.metrics.set_value('mail_health_exporter__last_spam_score_check_timestamp', time.time())
             self.last_spam_score_check_timestamp = current_time
 
@@ -903,6 +905,8 @@ class MailHealthExporter:
             self.logger.info(f'Sending email to spam score test from {self.internal_email_address} to '
                              f'{self.spam_score_test_email_address}')
             self.send_test_email(self.internal_email_address, self.spam_score_test_email_address, unique_id)
+
+            time.sleep(60) # wait until message is processed 
 
             self.logger.info(f'Retrieving spam score from url {self.spam_score_test_url}')
             spam_score = self.extract_mail_tester_score(self.spam_score_test_url)
