@@ -866,6 +866,7 @@ class MailHealthExporter:
 
         duration = time.time() - start_time
         self.metrics.set_value('mail_health_exporter__roundtrip_duration_seconds', duration)
+        self.metrics.set_value('mail_health_exporter__last_send_receive_check_timestamp', start_time)
         self.logger.info(f'Mail test completed in {duration:.2f} seconds')
 
     def run_mail_spam_score_test(self):
@@ -893,6 +894,7 @@ class MailHealthExporter:
 
         # If the function hasn't run for at least 6 hours
         if (current_time - self.last_spam_score_check_timestamp).total_seconds() >= 6 * 60 * 60:
+            self.metrics.set_value('mail_health_exporter__last_spam_score_check_timestamp', time.time())
             self.last_spam_score_check_timestamp = current_time
 
             unique_id = str(uuid.uuid4())[:8]

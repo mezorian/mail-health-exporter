@@ -1,6 +1,6 @@
 version: '3.8'
 
-# deactivate the following 5 lines if you don't want to use docker secrets
+# Deactivate the following 5 lines if you don't want to use docker secrets
 # but prefer to work with environment variables (maybe not as secure)
 secrets:
   internal_email_password:
@@ -16,7 +16,7 @@ services:
     restart: unless-stopped
     ports:
       - "9091:9091"
-    # deactivate the following 3 lines if you don't want to use docker secrets
+    # Deactivate the following 3 lines if you don't want to use docker secrets
     # but prefer to work with environment variables (maybe not as secure)
     secrets:
       - internal_email_password
@@ -33,7 +33,7 @@ services:
       - INTERNAL_IMAP_PORT=993
       - INTERNAL_IMAP_USE_SSL=true
       - INTERNAL_EMAIL_ADDRESS=mail-monitoring@my-mail-server.com
-      # activate the following line if you don't want to use docker secrets
+      # Activate the following line if you don't want to use docker secrets
       # but prefer to work with environment variables (maybe not as secure)
       #- INTERNAL_EMAIL_PASSWORD=TYPE_YOUR_PASSWORD_HERE
 
@@ -45,7 +45,7 @@ services:
       - EXTERNAL_IMAP_PORT=993
       - EXTERNAL_IMAP_USE_SSL=true
       - EXTERNAL_EMAIL_ADDRESS=mail-monitoring@gmail.com
-      # activate the following line if you don't want to use docker secrets
+      # Activate the following line if you don't want to use docker secrets
       # but prefer to work with environment variables (maybe not as secure)
       #- EXTERNAL_EMAIL_PASSWORD=TYPE_YOUR_PASSWORD_HERE
 
