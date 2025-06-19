@@ -164,7 +164,7 @@ Click **Deploy the stack**
 2. **Connection Issues**:
    - Verify server hostnames and ports
    - Check firewall rules
-   - Confirm TLS/SSL settings
+   - Confirm TLS settings
 
 3. **Container Won't Start**:
    - Check Docker logs: `docker-compose logs mail-health-exporter`

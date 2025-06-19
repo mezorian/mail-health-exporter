@@ -2,9 +2,9 @@
 """
 Mail Health Exporter - A Prometheus-based email monitoring system.
 
-This module provides comprehensive email server monitoring by testing mail sending,
+This python-program provides comprehensive email server monitoring by testing mail sending,
 receiving, and spam score evaluation. It exposes metrics via a Prometheus endpoint
-for integration with monitoring systems.
+for integration with monitoring systems and also via a small minimal status website.
 """
 
 import smtplib
@@ -14,6 +14,8 @@ import time
 import logging
 import threading
 import uuid
+import random
+import string
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import formatdate, make_msgid
@@ -48,9 +50,6 @@ class MetricsStore:
     def __init__(self):
         """
         Initialize the metrics store with default values.
-
-        Sets up all mail health metrics including counters for send/receive operations,
-        gauges for service status, and timestamps for monitoring freshness.
         """
         self.lock = threading.Lock()
         self.metrics = {
@@ -69,6 +68,22 @@ class MetricsStore:
             'mail_health_exporter__spam_score': 0,
             'mail_health_exporter__last_spam_score_check_timestamp': time.time()
         }
+        self.spam_score_test_url = ""
+
+    def set_spam_score_test_url(self, url: str) -> None:
+        """
+        Sets the current value of the spam score test url.
+        It's required to save this url in the metrics store to be able to
+        update the status website's html with this url.
+        Since this url is not required in the metrics they are not part of the
+        metrics store itself.
+
+        Parameters
+        ----------
+        url: str
+            URL of the spam-score website
+        """
+        self.spam_score_test_url = url
 
     def increment(self, metric_name: str) -> None:
         """
@@ -96,7 +111,7 @@ class MetricsStore:
         with self.lock:
             self.metrics[metric_name] = value
 
-    def get_prometheus_format(self) -> str:
+    def get_prometheus_formatted_metrics(self) -> str:
         """
         Generate Prometheus-formatted metrics output.
 
@@ -108,93 +123,67 @@ class MetricsStore:
         with self.lock:
             output = []
 
-            output.append(
-                '# HELP mail_health_exporter__send_internal_to_external_success_total Total successful mail sends from internal to external')
+            output.append('# HELP mail_health_exporter__send_internal_to_external_success_total Total successful mail sends from internal to external')
             output.append('# TYPE mail_health_exporter__send_internal_to_external_success_total counter')
-            output.append(
-                f'mail_health_exporter__send_internal_to_external_success_total {self.metrics["mail_health_exporter__send_internal_to_external_success_total"]}')
+            output.append(f'mail_health_exporter__send_internal_to_external_success_total {self.metrics["mail_health_exporter__send_internal_to_external_success_total"]}')
 
-            output.append(
-                '# HELP mail_health_exporter__send_internal_to_external_failures_total Total failed mail sends from internal to external')
+            output.append('# HELP mail_health_exporter__send_internal_to_external_failures_total Total failed mail sends from internal to external')
             output.append('# TYPE mail_health_exporter__send_internal_to_external_failures_total counter')
-            output.append(
-                f'mail_health_exporter__send_internal_to_external_failures_total {self.metrics["mail_health_exporter__send_internal_to_external_failures_total"]}')
+            output.append(f'mail_health_exporter__send_internal_to_external_failures_total {self.metrics["mail_health_exporter__send_internal_to_external_failures_total"]}')
 
-            output.append(
-                '# HELP mail_health_exporter__receive_internal_to_external_success_total Total successful mail receivs from internal to external')
+            output.append('# HELP mail_health_exporter__receive_internal_to_external_success_total Total successful mail receipts from internal to external')
             output.append('# TYPE mail_health_exporter__receive_internal_to_external_success_total counter')
-            output.append(
-                f'mail_health_exporter__receive_internal_to_external_success_total {self.metrics["mail_health_exporter__receive_internal_to_external_success_total"]}')
+            output.append(f'mail_health_exporter__receive_internal_to_external_success_total {self.metrics["mail_health_exporter__receive_internal_to_external_success_total"]}')
 
-            output.append(
-                '# HELP mail_health_exporter__receive_internal_to_external_failures_total Total failed mail receivs from internal to external')
+            output.append('# HELP mail_health_exporter__receive_internal_to_external_failures_total Total failed mail receipts from internal to external')
             output.append('# TYPE mail_health_exporter__receive_internal_to_external_failures_total counter')
-            output.append(
-                f'mail_health_exporter__receive_internal_to_external_failures_total {self.metrics["mail_health_exporter__receive_internal_to_external_failures_total"]}')
+            output.append(f'mail_health_exporter__receive_internal_to_external_failures_total {self.metrics["mail_health_exporter__receive_internal_to_external_failures_total"]}')
 
-            output.append(
-                '# HELP mail_health_exporter__send_external_to_internal_success_total Total successful mail sends from external to internal')
+            output.append('# HELP mail_health_exporter__send_external_to_internal_success_total Total successful mail sends from external to internal')
             output.append('# TYPE mail_health_exporter__send_external_to_internal_success_total counter')
-            output.append(
-                f'mail_health_exporter__send_external_to_internal_success_total {self.metrics["mail_health_exporter__send_external_to_internal_success_total"]}')
+            output.append(f'mail_health_exporter__send_external_to_internal_success_total {self.metrics["mail_health_exporter__send_external_to_internal_success_total"]}')
 
-            output.append(
-                '# HELP mail_health_exporter__send_external_to_internal_failures_total Total failed mail sends from external to internal')
+            output.append('# HELP mail_health_exporter__send_external_to_internal_failures_total Total failed mail sends from external to internal')
             output.append('# TYPE mail_health_exporter__send_external_to_internal_failures_total counter')
-            output.append(
-                f'mail_health_exporter__send_external_to_internal_failures_total {self.metrics["mail_health_exporter__send_external_to_internal_failures_total"]}')
+            output.append(f'mail_health_exporter__send_external_to_internal_failures_total {self.metrics["mail_health_exporter__send_external_to_internal_failures_total"]}')
 
-            output.append(
-                '# HELP mail_health_exporter__receive_external_to_internal_success_total Total successful mail receivs from external to internal')
+            output.append('# HELP mail_health_exporter__receive_external_to_internal_success_total Total successful mail receipts from external to internal')
             output.append('# TYPE mail_health_exporter__receive_external_to_internal_success_total counter')
-            output.append(
-                f'mail_health_exporter__receive_external_to_internal_success_total {self.metrics["mail_health_exporter__receive_external_to_internal_success_total"]}')
+            output.append(f'mail_health_exporter__receive_external_to_internal_success_total {self.metrics["mail_health_exporter__receive_external_to_internal_success_total"]}')
 
-            output.append(
-                '# HELP mail_health_exporter__receive_external_to_internal_failures_total Total failed mail receivs from external to internal')
+            output.append('# HELP mail_health_exporter__receive_external_to_internal_failures_total Total failed mail receipts from external to internal')
             output.append('# TYPE mail_health_exporter__receive_external_to_internal_failures_total counter')
-            output.append(
-                f'mail_health_exporter__receive_external_to_internal_failures_total {self.metrics["mail_health_exporter__receive_external_to_internal_failures_total"]}')
+            output.append(f'mail_health_exporter__receive_external_to_internal_failures_total {self.metrics["mail_health_exporter__receive_external_to_internal_failures_total"]}')
 
-            output.append(
-                '# HELP mail_health_exporter__sending_mails_working Status whether the server is able to send mails or not')
+            output.append('# HELP mail_health_exporter__sending_mails_working Status whether the server is able to send mails or not')
             output.append('# TYPE mail_health_exporter__sending_mails_working gauge')
-            output.append(
-                f'mail_health_exporter__sending_mails_working {self.metrics["mail_health_exporter__sending_mails_working"]}')
+            output.append(f'mail_health_exporter__sending_mails_working {self.metrics["mail_health_exporter__sending_mails_working"]}')
 
-            output.append(
-                '# HELP mail_health_exporter__receiving_mails_working Status whether the server is able to receive mails or not')
+            output.append('# HELP mail_health_exporter__receiving_mails_working Status whether the server is able to receive mails or not')
             output.append('# TYPE mail_health_exporter__receiving_mails_working gauge')
-            output.append(
-                f'mail_health_exporter__receiving_mails_working {self.metrics["mail_health_exporter__receiving_mails_working"]}')
+            output.append(f'mail_health_exporter__receiving_mails_working {self.metrics["mail_health_exporter__receiving_mails_working"]}')
 
-            output.append(
-                '# HELP mail_health_exporter__roundtrip_duration_seconds Duration of last full internal->external->internal mail roundtrip')
+            output.append('# HELP mail_health_exporter__roundtrip_duration_seconds Duration (in seconds) of last full internal->external->internal mail roundtrip')
             output.append('# TYPE mail_health_exporter__roundtrip_duration_seconds gauge')
-            output.append(
-                f'mail_health_exporter__roundtrip_duration_seconds {self.metrics["mail_health_exporter__roundtrip_duration_seconds"]}')
+            output.append(f'mail_health_exporter__roundtrip_duration_seconds {self.metrics["mail_health_exporter__roundtrip_duration_seconds"]}')
 
-            output.append(
-                '# HELP mail_health_exporter__last_send_receive_check_timestamp Timestamp of last send-receive check')
+            output.append('# HELP mail_health_exporter__last_send_receive_check_timestamp Timestamp of last send-receive check')
             output.append('# TYPE mail_health_exporter__last_send_receive_check_timestamp gauge')
-            output.append(
-                f'mail_health_exporter__last_send_receive_check_timestamp {self.metrics["mail_health_exporter__last_send_receive_check_timestamp"]}')
+            output.append(f'mail_health_exporter__last_send_receive_check_timestamp {self.metrics["mail_health_exporter__last_send_receive_check_timestamp"]}')
 
             output.append('# HELP mail_health_exporter__spam_score Spam score of send mails')
             output.append('# TYPE mail_health_exporter__spam_score gauge')
             output.append(f'mail_health_exporter__spam_score {self.metrics["mail_health_exporter__spam_score"]}')
 
-            output.append(
-                '# HELP mail_health_exporter__last_spam_score_check_timestamp Timestamp of last spam-score check')
+            output.append('# HELP mail_health_exporter__last_spam_score_check_timestamp Timestamp of last spam-score check')
             output.append('# TYPE mail_health_exporter__last_spam_score_check_timestamp gauge')
-            output.append(
-                f'mail_health_exporter__last_spam_score_check_timestamp {self.metrics["mail_health_exporter__last_spam_score_check_timestamp"]}')
+            output.append(f'mail_health_exporter__last_spam_score_check_timestamp {self.metrics["mail_health_exporter__last_spam_score_check_timestamp"]}')
 
             return '\n'.join(output)
 
     def get_status_data(self) -> dict:
         """
-        Get current metrics data for the status page.
+        Get current metrics data for the status page website.
 
         Returns
         -------
@@ -210,13 +199,14 @@ class MetricsStore:
                 'receivingWorksLastUpdated': float(
                     self.metrics['mail_health_exporter__last_send_receive_check_timestamp']),
                 'spamScoreLastUpdated': float(
-                    self.metrics['mail_health_exporter__last_spam_score_check_timestamp'])
+                    self.metrics['mail_health_exporter__last_spam_score_check_timestamp']),
+                'spamScoreTestUrl': self.spam_score_test_url
             }
 
 
 class HTTPHandler(BaseHTTPRequestHandler):
     """
-    HTTP request handler for Prometheus metrics endpoint and status page.
+    HTTP request handler for Prometheus metrics endpoint and status page website.
 
     Handles GET requests to /metrics endpoint and /status endpoint, returns 404 for others.
 
@@ -224,11 +214,11 @@ class HTTPHandler(BaseHTTPRequestHandler):
     ----------
     metrics_store : MetricsStore
         Reference to the metrics storage instance
-    status_html : str
-        The HTML content for the status page
+    status_html_template : str
+        The HTML content for the status page template
     """
 
-    def __init__(self, request, client_address, server, metrics_store: MetricsStore = None, status_html_template: str = "Put your html here"):
+    def __init__(self, request, client_address, server, metrics_store = None, status_html_template: str = "Put your html here"):
         """
         Initialize the HTTP request handler.
 
@@ -238,6 +228,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
             The request socket
         client_address : tuple
             Client address information
+            Contains a tuple of the form (host, port) referring to the client’s address.
         server : HTTPServer
             The HTTP server instance
         metrics_store : MetricsStore, optional
@@ -245,12 +236,48 @@ class HTTPHandler(BaseHTTPRequestHandler):
         status_html_template : str, optional
             HTML content for status page, by default "Put your html here"
             This variable describes the template html.
-            Each Get-request will use this template and update it according
+            Each Get-request will use this template and update it with the
             current values in the metrics store
         """
         self.metrics_store = metrics_store
         self.status_html_template = status_html_template
         super().__init__(request, client_address, server)
+
+    def translate_path(self, path):
+        """
+        This method overrides the `translate_path` method in the
+        `BaseHTTPRequestHandler` class to ensure that symbolic links
+        are not followed, preventing potential security risks.
+        This change is necessary since the documentation of python http.server
+        mentions that "SimpleHTTPRequestHandler will follow symbolic links when
+        handling requests, this makes it possible for files outside the
+        specified directory to be served."
+        (https://docs.python.org/3.13/library/http.server.html#http-server-security)
+
+        Parameters
+        ----------
+        path : str
+            The URL path (e.g., `/index.html` or `/about.html`) from the request.
+
+        Returns
+        -------
+        str
+            The file system path corresponding to the URL path.
+
+        Raises
+        ------
+        PermissionError
+            If a symbolic link is encountered during path translation.
+        """
+        # First, translate the URL path into the file system path
+        translated_path = super().translate_path(path)
+
+        # Check if the translated path is a symbolic link
+        if os.path.islink(translated_path):
+            # You could raise an error, log, or deny access to symbolic links
+            raise PermissionError(f"Access denied to symbolic link: {translated_path}")
+
+        return translated_path
 
     def do_GET(self) -> None:
         """
@@ -259,19 +286,26 @@ class HTTPHandler(BaseHTTPRequestHandler):
         Serves Prometheus metrics on /metrics endpoint, status page on /status endpoint,
         returns 404 for all other paths.
         """
-        if self.path == '/metrics':
-            self.send_response(200)
-            self.send_header('Content-type', 'text/plain; charset=utf-8')
+        try:
+            if self.path == '/metrics':
+                self.send_response(200)
+                self.send_header('Content-type', 'text/plain; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(self.metrics_store.get_prometheus_formatted_metrics().encode('utf-8'))
+            elif self.path == '/status':
+                self.send_response(200)
+                self.send_header('Content-type', 'text/html; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(self._get_updated_status_html().encode('utf-8'))
+            else:
+                self.send_response(404)
+                self.end_headers()
+        # If the HTTP Server tries to serve a symlink it will raise a permission error
+        except PermissionError as e:
+            self.send_response(403)
+            self.send_header("Content-type", "text/plain")
             self.end_headers()
-            self.wfile.write(self.metrics_store.get_prometheus_format().encode('utf-8'))
-        elif self.path == '/status':
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html; charset=utf-8')
-            self.end_headers()
-            self.wfile.write(self._get_updated_status_html().encode('utf-8'))
-        else:
-            self.send_response(404)
-            self.end_headers()
+            self.wfile.write(str(e).encode())
 
     def log_message(self, format: str, *args) -> None:
         """
@@ -306,6 +340,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
     sendingWorks: {str(status_data['sendingWorks']).lower()},
     receivingWorks: {str(status_data['receivingWorks']).lower()},
     spamScore: {status_data['spamScore']},
+    spamScoreTestUrl: '{status_data['spamScoreTestUrl']}',
     lastUpdated: {{
                 sending: {status_data['sendingWorksLastUpdated']},
                 receiving: {status_data['receivingWorksLastUpdated']},
@@ -327,7 +362,8 @@ class MailHealthExporter:
 
     This class orchestrates email testing by sending test messages between
     internal and external mail servers, checking for delivery, and monitoring
-    spam scores. It exposes metrics via a Prometheus HTTP endpoint.
+    spam scores. It exposes metrics via a Prometheus HTTP endpoint and via
+    a minimal status website.
 
     Attributes
     ----------
@@ -351,8 +387,8 @@ class MailHealthExporter:
         Internal IMAP server hostname
     internal_imap_port : int
         Internal IMAP server port
-    internal_imap_use_ssl : bool
-        Whether to use SSL for internal IMAP
+    internal_imap_use_tls : bool
+        Whether to use TLS for internal IMAP
     internal_email_address : str
         Internal email account address
     internal_email_password : str
@@ -367,8 +403,8 @@ class MailHealthExporter:
         External IMAP server hostname
     external_imap_port : int
         External IMAP server port
-    external_imap_use_ssl : bool
-        Whether to use SSL for external IMAP
+    external_imap_use_tls : bool
+        Whether to use TLS for external IMAP
     external_email_address : str
         External email account address
     external_email_password : str
@@ -413,9 +449,9 @@ class MailHealthExporter:
         self.internal_smtp_use_tls = os.getenv('INTERNAL_SMTP_USE_TLS', 'true').lower() in ('true', '1', 'yes')
         self.internal_imap_server = os.getenv('INTERNAL_IMAP_SERVER')
         self.internal_imap_port = int(os.getenv('INTERNAL_IMAP_PORT', '993'))
-        self.internal_imap_use_ssl = os.getenv('INTERNAL_IMAP_USE_SSL', 'true').lower() in ('true', '1', 'yes')
+        self.internal_imap_use_tls = os.getenv('INTERNAL_IMAP_USE_TLS', 'true').lower() in ('true', '1', 'yes')
         self.internal_email_address = os.getenv('INTERNAL_EMAIL_ADDRESS')
-        self.internal_email_password = self._read_password_from_docker_secret('internal_email_password')
+        self.internal_email_password = self._read_password_from_docker_secret_or_env('internal_email_password')
 
         # External mail server configuration
         self.external_smtp_server = os.getenv('EXTERNAL_SMTP_SERVER')
@@ -423,13 +459,11 @@ class MailHealthExporter:
         self.external_smtp_use_tls = os.getenv('EXTERNAL_SMTP_USE_TLS', 'true').lower() in ('true', '1', 'yes')
         self.external_imap_server = os.getenv('EXTERNAL_IMAP_SERVER')
         self.external_imap_port = int(os.getenv('EXTERNAL_IMAP_PORT', '993'))
-        self.external_imap_use_ssl = os.getenv('EXTERNAL_IMAP_USE_SSL', 'true').lower() in ('true', '1', 'yes')
+        self.external_imap_use_tls = os.getenv('EXTERNAL_IMAP_USE_TLS', 'true').lower() in ('true', '1', 'yes')
         self.external_email_address = os.getenv('EXTERNAL_EMAIL_ADDRESS')
-        self.external_email_password = self._read_password_from_docker_secret('external_email_password')
+        self.external_email_password = self._read_password_from_docker_secret_or_env('external_email_password')
 
         # Spam score test configuration
-        self.spam_score_test_email_address = os.getenv('SPAM_SCORE_TEST_EMAIL_ADDRESS')
-        self.spam_score_test_url = os.getenv('SPAM_SCORE_TEST_URL')
         self.last_spam_score_check_timestamp = datetime.now() - timedelta(hours=24)
 
         # Test configuration
@@ -444,8 +478,7 @@ class MailHealthExporter:
             'INTERNAL_SMTP_SERVER', 'INTERNAL_IMAP_SERVER',
             'INTERNAL_EMAIL_ADDRESS',
             'EXTERNAL_SMTP_SERVER', 'EXTERNAL_IMAP_SERVER',
-            'EXTERNAL_EMAIL_ADDRESS',
-            'SPAM_SCORE_TEST_EMAIL_ADDRESS', 'SPAM_SCORE_TEST_URL'
+            'EXTERNAL_EMAIL_ADDRESS'
         ]
 
         missing_vars = [var for var in required_vars if not os.getenv(var)]
@@ -462,6 +495,19 @@ class MailHealthExporter:
         self._load_status_html_template()
 
     # ===== CONFIGURATION AND SETUP METHODS =====
+
+    def _set_random_spam_score_variables(self) -> None:
+        # generate a random string with length of 9 that can include both
+        # characters and numbers
+        length = 9
+        characters = string.ascii_letters + string.digits  # Allow both letters and digits
+        random_string = ''.join(random.choices(characters, k=length))
+
+        self.spam_score_test_url = f'https://www.mail-tester.com/test-{random_string}'
+        self.spam_score_test_email_address = f'test-{random_string}@srv1.mail-tester.com'
+
+        self.logger.info(f'Successfully generated random spam-score url: {self.spam_score_test_url}')
+        self.logger.info(f'Successfully generated random spam-mail address: {self.spam_score_test_email_address}')
 
     def _load_status_html_template(self) -> None:
         """
@@ -487,7 +533,8 @@ class MailHealthExporter:
             self.logger.error(f'Error loading status HTML template: {e}')
             raise
 
-    def _read_password_from_docker_secret(self, secret_name: str) -> Optional[str]:
+    @staticmethod
+    def _read_password_from_docker_secret_or_env(secret_name: str) -> Optional[str]:
         """
         Read password from Docker secret or environment variable.
 
@@ -518,7 +565,8 @@ class MailHealthExporter:
 
         return None
 
-    def _setup_logging(self) -> logging.Logger:
+    @staticmethod
+    def _setup_logging() -> logging.Logger:
         """
         Set up logging optimized for Docker containers.
 
@@ -573,7 +621,7 @@ class MailHealthExporter:
         Parameters
         ----------
         from_address : str
-            Sender email address (must be internal or external address)
+            Sender email address (must be internal or external email address)
         to_address : str
             Recipient email address
         unique_id : str
@@ -587,13 +635,15 @@ class MailHealthExporter:
         success = True
 
         try:
-            if (from_address == self.internal_email_address):
+            # check if from_address is either internal or external email address
+            # and set configuration variables accordingly
+            if from_address == self.internal_email_address:
                 email_address = self.internal_email_address
                 email_password = self.internal_email_password
                 smtp_server = self.internal_smtp_server
                 smtp_port = self.internal_smtp_port
                 use_tls = self.internal_smtp_use_tls
-            elif (from_address == self.external_email_address):
+            elif from_address == self.external_email_address:
                 email_address = self.external_email_address
                 email_password = self.external_email_password
                 smtp_server = self.external_smtp_server
@@ -606,15 +656,16 @@ class MailHealthExporter:
                 success = False
 
             if success:
-                msg = MIMEMultipart()
-                msg['From'] = from_address
-                msg['To'] = to_address
-                msg['Subject'] = f'Mail Health Exporter - {unique_id}'
-                msg['Date'] = formatdate(localtime=True)
-                msg['Message-ID'] = make_msgid()
-                msg['X-Mailer'] = 'Python SMTP Client'
+                # create email message object
+                email_message = MIMEMultipart()
+                email_message['From'] = from_address
+                email_message['To'] = to_address
+                email_message['Subject'] = f'Mail Health Exporter - {unique_id}'
+                email_message['Date'] = formatdate(localtime=True)
+                email_message['Message-ID'] = make_msgid()
+                email_message['X-Mailer'] = 'Python SMTP Client'
 
-                body = f"""
+                email_body = f"""
                 This is an automated test email from the mail health exporter service.
 
                 Test ID: {unique_id}
@@ -623,7 +674,7 @@ class MailHealthExporter:
                 This email should be automatically processed and deleted.
                 """
 
-                msg.attach(MIMEText(body, 'plain'))
+                email_message.attach(MIMEText(email_body, 'plain'))
 
                 # For SSL/TLS servers (usually port 465)
                 if use_tls and smtp_port == 465:
@@ -635,7 +686,7 @@ class MailHealthExporter:
                         server.starttls()
 
                 server.login(email_address, email_password)
-                server.send_message(msg)
+                server.send_message(email_message)
                 server.quit()
 
                 self.logger.info(f'Successfully sent test email with ID: {unique_id}')
@@ -648,14 +699,14 @@ class MailHealthExporter:
         if success:
             self.metrics.set_value('mail_health_exporter__sending_mails_working', 1)
 
-            if (from_address == self.internal_email_address):
+            if from_address == self.internal_email_address:
                 self.metrics.increment('mail_health_exporter__send_internal_to_external_success_total')
             else:
                 self.metrics.increment('mail_health_exporter__send_external_to_internal_success_total')
         else:
             self.metrics.set_value('mail_health_exporter__sending_mails_working', 0)
 
-            if (from_address == self.internal_email_address):
+            if from_address == self.internal_email_address:
                 self.metrics.increment('mail_health_exporter__send_internal_to_external_failures_total')
             else:
                 self.metrics.increment('mail_health_exporter__send_external_to_internal_failures_total')
@@ -676,6 +727,7 @@ class MailHealthExporter:
             Expected sender address of the test email
         to_address : str
             Recipient address (determines which inbox to check)
+            Must be internal or external email address
         unique_id : str
             Unique identifier to search for in email subjects
         max_wait_time : int, optional
@@ -688,18 +740,18 @@ class MailHealthExporter:
         """
         success = True
 
-        if (to_address == self.internal_email_address):
+        if to_address == self.internal_email_address:
             email_address = self.internal_email_address
             email_password = self.internal_email_password
             imap_server = self.internal_imap_server
             imap_port = self.internal_imap_port
-            imap_use_ssl = self.internal_imap_use_ssl
-        elif (to_address == self.external_email_address):
+            imap_use_tls = self.internal_imap_use_tls
+        elif to_address == self.external_email_address:
             email_address = self.external_email_address
             email_password = self.external_email_password
             imap_server = self.external_imap_server
             imap_port = self.external_imap_port
-            imap_use_ssl = self.external_imap_use_ssl
+            imap_use_tls = self.external_imap_use_tls
         else:
             self.logger.error(
                 "Function check_inbox_for_test_email failed: to_address '{}' was neither from internal server "
@@ -714,7 +766,7 @@ class MailHealthExporter:
             success = False
             while (not success) and (time.time() - start_time < max_wait_time):
                 try:
-                    if imap_use_ssl:
+                    if imap_use_tls:
                         mail = imaplib.IMAP4_SSL(imap_server, imap_port)
                     else:
                         mail = imaplib.IMAP4(imap_server, imap_port)
@@ -729,12 +781,17 @@ class MailHealthExporter:
                     if result == 'OK' and data[0]:
                         email_ids = data[0].split()
 
+                        # loop over all found mails that matched the search-criteria
+                        # - fetch the email and load it into variable
+                        # - check if id is part of the emails subject
+                        # - delete mail from mailbox
                         for email_id in email_ids:
                             result, email_data = mail.fetch(email_id, '(RFC822)')
                             if result == 'OK':
                                 email_message = email.message_from_bytes(email_data[0][1])
                                 subject = email_message['Subject']
 
+                                # delete mail
                                 if unique_id in subject:
                                     # Delete the test email
                                     mail.store(email_id, '+FLAGS', '\\Deleted')
@@ -757,7 +814,7 @@ class MailHealthExporter:
                 self.logger.info(f'Successfully received and deleted test email: {unique_id}')
                 self.metrics.set_value('mail_health_exporter__receiving_mails_working', 1)
 
-                if (from_address == self.internal_email_address):
+                if from_address == self.internal_email_address:
                     self.metrics.increment('mail_health_exporter__receive_internal_to_external_success_total')
                 else:
                     self.metrics.increment('mail_health_exporter__receive_external_to_internal_success_total')
@@ -765,7 +822,7 @@ class MailHealthExporter:
                 self.logger.error(f'Test email not found within {max_wait_time} seconds: {unique_id}')
                 self.metrics.set_value('mail_health_exporter__receiving_mails_working', 0)
 
-                if (from_address == self.internal_email_address):
+                if from_address == self.internal_email_address:
                     self.metrics.increment('mail_health_exporter__receive_internal_to_external_failures_total')
                 else:
                     self.metrics.increment('mail_health_exporter__receive_external_to_internal_failures_total')
@@ -813,7 +870,7 @@ class MailHealthExporter:
                 score = int(match_score_value.group())
                 self.logger.info(f"Successfully parsed score: {score}")
             else:
-                self.logger.error(f"Failed to parse score from html: {text_content}")
+                self.logger.info(f"Failed to parse score from html: {text_content}")
 
         except requests.RequestException as e:
             self.logger.error(f"Error fetching URL: {e}")
@@ -837,13 +894,8 @@ class MailHealthExporter:
         6. Deleting the received email from the internal mailbox
         7. Recording the total roundtrip duration as a metric
 
-
         The test uses a unique identifier to track individual test messages
         and measures the complete roundtrip time for monitoring purposes.
-
-        Parameters
-        ----------
-        None
 
         Returns
         -------
@@ -866,6 +918,7 @@ class MailHealthExporter:
         self.check_inbox_for_test_email(self.external_email_address, self.internal_email_address, unique_id,
                                         self.timeout_seconds)
 
+        # calculate total roundtrip time
         duration = time.time() - start_time
         self.metrics.set_value('mail_health_exporter__roundtrip_duration_seconds', duration)
         self.metrics.set_value('mail_health_exporter__last_send_receive_check_timestamp', start_time)
@@ -884,10 +937,6 @@ class MailHealthExporter:
         The 8-hour rate limit prevents excessive API calls to the spam testing
         service while ensuring regular monitoring of email deliverability.
 
-        Parameters
-        ----------
-        None
-
         Returns
         -------
         None
@@ -896,21 +945,28 @@ class MailHealthExporter:
 
         # If the function hasn't run for at least 8 hours
         if (current_time - self.last_spam_score_check_timestamp).total_seconds() >= 8 * 60 * 60:
+            # create new random spam-score variables
+            # because we don't always want to use the same url and email address.
+            self._set_random_spam_score_variables()
+            self.metrics.set_spam_score_test_url(self.spam_score_test_url)
+
+            # set timestamp
             self.metrics.set_value('mail_health_exporter__last_spam_score_check_timestamp', time.time())
             self.last_spam_score_check_timestamp = current_time
 
+            # send test mail
             unique_id = str(uuid.uuid4())[:8]
             self.logger.info(f'Starting spam score test with ID: {unique_id}')
-
             self.logger.info(f'Sending email to spam score test from {self.internal_email_address} to '
                              f'{self.spam_score_test_email_address}')
             self.send_test_email(self.internal_email_address, self.spam_score_test_email_address, unique_id)
 
-            time.sleep(60) # wait until message is processed 
+            # wait until message is processed by mail tester website
+            time.sleep(60)
 
+            # retrieve spam score from website
             self.logger.info(f'Retrieving spam score from url {self.spam_score_test_url}')
             spam_score = self.extract_mail_tester_score(self.spam_score_test_url)
-
             self.metrics.set_value('mail_health_exporter__spam_score', spam_score)
 
         else:
@@ -929,10 +985,6 @@ class MailHealthExporter:
         The server uses a custom handler factory that provides access to the
         metrics store for serving current metric values to Prometheus scrapers.
 
-        Parameters
-        ----------
-        None
-
         Returns
         -------
         server : HTTPServer
@@ -944,13 +996,43 @@ class MailHealthExporter:
         The daemon thread ensures the server shuts down when the main process exits.
         """
 
-        # Create a handler factory that includes the metrics store
         def handler_factory(request, client_address, server):
+            """
+            Factory function to create an HTTPHandler instance with custom parameters.
+
+            "Factory" in the sense of Factory Design Pattern - which is the way how HTTPServer is designed
+            This function is used by the HTTPServer to generate handler instances for
+            each request, with access to the metrics store and status HTML template.
+
+            Parameters
+            ----------
+            request : request
+                The HTTP request object.
+            client_address : tuple
+                The client's address (IP, port).
+            server : HTTPServer
+                The HTTP server instance.
+
+            Returns
+            -------
+            HTTPHandler
+                An instance of the HTTPHandler that processes the request.
+            """
             return HTTPHandler(request, client_address, server, self.metrics, self.status_html_template)
 
         server = HTTPServer(('0.0.0.0', self.metrics_port), handler_factory)
 
         def serve_forever():
+            """
+            Start serving the HTTP server indefinitely.
+
+            This function is executed in a background thread to serve the Prometheus
+            metrics and website to clients. It also logs the server startup information.
+
+            Returns
+            -------
+            None
+            """
             self.logger.info(f'Prometheus metrics server started on port {self.metrics_port}')
             server.serve_forever()
 
@@ -971,10 +1053,6 @@ class MailHealthExporter:
         The loop runs until the service is stopped via interrupt signal or
         by setting the running flag to False. Each iteration performs both
         send/receive tests and spam score tests.
-
-        Parameters
-        ----------
-        None
 
         Returns
         -------
@@ -1021,10 +1099,6 @@ class MailHealthExporter:
         the running flag to False, which will cause the main service loop
         to exit on its next iteration.
 
-        Parameters
-        ----------
-        None
-
         Returns
         -------
         None
@@ -1039,10 +1113,6 @@ def main():
     health check service. It handles any fatal errors that occur during
     initialization or execution by logging them and exiting with an
     error code.
-
-    Parameters
-    ----------
-    None
 
     Returns
     -------

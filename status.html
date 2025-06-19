@@ -225,7 +225,7 @@
         .gauge {
             position: relative;
             width: 280px;
-            height: 180px;
+            height: 200px;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -337,7 +337,7 @@
 
         .gauge-labels {
             position: absolute;
-            bottom: -10px;
+            bottom: -15px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
@@ -350,12 +350,12 @@
 
         .gauge-title {
             position: absolute;
-            bottom: 55px;
+            bottom: -35px;
             left: 50%;
             transform: translateX(-50%);
-            font-size: 0.8rem;
-            color: rgba(255, 255, 255, 0.6);
-            font-weight: 400;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 600;
             letter-spacing: 1px;
             text-transform: uppercase;
         }
@@ -363,6 +363,27 @@
         .gauge-timestamp {
             margin-top: 1rem;
             text-align: center;
+        }
+
+        /* Mail tester link styling */
+        .mail-tester-link {
+            margin-top: 2.5rem;
+            text-align: center;
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .mail-tester-link a {
+            color: #40e0d0;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border-bottom: 1px solid transparent;
+        }
+
+        .mail-tester-link a:hover {
+            color: #48cae4;
+            border-bottom-color: #48cae4;
+            text-shadow: 0 0 8px rgba(64, 224, 208, 0.3);
         }
 
         .refresh-btn {
@@ -385,6 +406,35 @@
         .refresh-btn:hover {
             transform: scale(1.1) rotate(180deg);
             box-shadow: 0 6px 30px rgba(64, 224, 208, 0.5);
+        }
+
+        /* Loading overlay for refresh */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 15, 35, 0.8);
+            backdrop-filter: blur(5px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(64, 224, 208, 0.3);
+            border-top: 4px solid #40e0d0;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         @keyframes slideDown {
@@ -410,6 +460,11 @@
 </head>
 <body>
     <div class="bg-particles" id="particles"></div>
+    
+    <!-- Loading overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-spinner"></div>
+    </div>
     
     <div class="container">
         <div class="header">
@@ -472,31 +527,6 @@
                                 <!-- Background arc -->
                                 <path class="gauge-bg-arc" d="M 30 110 A 100 100 0 0 1 230 110" />
                                 
-                                <!-- Tick marks -->
-                                <g class="gauge-ticks">
-                                    <!-- Minor ticks -->
-                                    <line x1="40" y1="115" x2="45" y2="110" />
-                                    <line x1="50" y1="125" x2="55" y2="118" />
-                                    <line x1="65" y1="135" x2="70" y2="127" />
-                                    <line x1="85" y1="142" x2="90" y2="134" />
-                                    <line x1="105" y1="145" x2="110" y2="137" />
-                                    <line x1="125" y1="147" x2="130" y2="139" />
-                                    <line x1="145" y1="147" x2="150" y2="139" />
-                                    <line x1="165" y1="145" x2="170" y2="137" />
-                                    <line x1="185" y1="142" x2="190" y2="134" />
-                                    <line x1="205" y1="135" x2="210" y2="127" />
-                                    <line x1="220" y1="125" x2="225" y2="118" />
-                                </g>
-                                
-                                <!-- Major ticks -->
-                                <g class="gauge-major-ticks">
-                                    <line x1="30" y1="110" x2="38" y2="105" />
-                                    <line x1="75" y1="140" x2="83" y2="132" />
-                                    <line x1="130" y1="150" x2="130" y2="140" />
-                                    <line x1="185" y1="140" x2="177" y2="132" />
-                                    <line x1="230" y1="110" x2="222" y2="105" />
-                                </g>
-                                
                                 <!-- Colored fill arc -->
                                 <path class="gauge-fill-arc" id="gauge-fill-arc" 
                                       d="M 30 110 A 100 100 0 0 1 230 110" 
@@ -505,7 +535,6 @@
                             
                             <div class="gauge-needle" id="gauge-needle"></div>
                             <div class="gauge-center"></div>
-                            <div class="gauge-title">Spam Score</div>
                             <div class="gauge-value" id="gauge-value">7</div>
                         </div>
                         <div class="gauge-labels">
@@ -515,9 +544,13 @@
                             <span>7</span>
                             <span>10</span>
                         </div>
+                        <div class="gauge-title">Spam Score</div>
                     </div>
                 </div>
                 <div class="gauge-timestamp">
+                    <div class="mail-tester-link">
+                        According to <a href="#" id="mail-tester-url" target="_blank" rel="noopener noreferrer">--</a>
+                    </div>
                     <div class="timestamp">
                         <span class="timestamp-icon">🕒</span>
                         <span class="timestamp-text">Last updated: <span id="spam-timestamp">--</span></span>
@@ -532,15 +565,16 @@
     </button>
 
     <script>
-        // Sample data - replace with your actual API calls
+        // Sample data - replace with your actual server-generated data
         let mailServerData = {
-            sendingWorks: true,
-            receivingWorks: true,
-            spamScore: 7,
+            sendingWorks: false,
+            receivingWorks: false,
+            spamScore: 0,
+            spamScoreTestUrl: 'LOADING',
             lastUpdated: {
-                sending: 1749864679.0018654,
-                receiving: 1749864679.0018654,
-                spam: 1749864679.0018654
+                sending: null,
+                receiving: null,
+                spam: null
             }
         };
 
@@ -602,6 +636,7 @@
             const sendingTimestamp = document.getElementById('sending-timestamp');
             const receivingTimestamp = document.getElementById('receiving-timestamp');
             const spamTimestamp = document.getElementById('spam-timestamp');
+            const mailTesterLink = document.getElementById('mail-tester-url');
 
             // Update sending status
             if (mailServerData.sendingWorks) {
@@ -625,6 +660,15 @@
             sendingTimestamp.textContent = formatTimestamp(mailServerData.lastUpdated.sending);
             receivingTimestamp.textContent = formatTimestamp(mailServerData.lastUpdated.receiving);
             spamTimestamp.textContent = formatTimestamp(mailServerData.lastUpdated.spam);
+
+            // Update mail tester link
+            if (mailServerData.spamScoreTestUrl) {
+                mailTesterLink.href = mailServerData.spamScoreTestUrl;
+                mailTesterLink.textContent = mailServerData.spamScoreTestUrl;
+            } else {
+                mailTesterLink.href = '#';
+                mailTesterLink.textContent = '--';
+            }
 
             // Update spam score gauge
             updateGauge(mailServerData.spamScore);
@@ -674,20 +718,33 @@
             }
         }
 
-        // Simulate data refresh (replace with actual API call)
+        // Refresh data by reloading the page to get fresh server data
         function refreshData() {
-
-            updateStatus();
-
-            // Add refresh animation
+            // Show loading overlay
+            const loadingOverlay = document.getElementById('loading-overlay');
+            loadingOverlay.style.display = 'flex';
+            
+            // Add refresh animation to button
             const btn = document.querySelector('.refresh-btn');
             btn.style.transform = 'scale(1.1) rotate(360deg)';
+            
+            // Small delay to show the animation, then reload
             setTimeout(() => {
-                btn.style.transform = 'scale(1) rotate(0deg)';
+                // Force reload from server (bypass cache)
+                window.location.reload(true);
             }, 300);
         }
 
-        // Update timestamps periodically to show relative time
+        // Auto-refresh by reloading the page every 5 minutes
+        function setupAutoRefresh() {
+            // Auto-refresh every 5 minutes (300000ms)
+            setInterval(() => {
+                console.log('Auto-refreshing page to get latest server data...');
+                window.location.reload(true);
+            }, 300000); // 5 minutes
+        }
+
+        // Update timestamps periodically to show relative time (without reloading)
         function updateTimestampDisplay() {
             const sendingTimestamp = document.getElementById('sending-timestamp');
             const receivingTimestamp = document.getElementById('receiving-timestamp');
@@ -702,13 +759,13 @@
         document.addEventListener('DOMContentLoaded', function() {
             createParticles();
             
-            // Initial timestamps are already set in mailServerData
+            // Initial display with current data
             updateStatus();
             
-            // Auto-refresh every 30 seconds
-            setInterval(refreshData, 30000);
+            // Setup auto-refresh
+            setupAutoRefresh();
             
-            // Update timestamp display every minute
+            // Update timestamp display every minute (just the relative time text)
             setInterval(updateTimestampDisplay, 60000);
         });
 
@@ -721,6 +778,14 @@
             card.addEventListener('mouseleave', function() {
                 this.style.transform = 'translateY(0) scale(1)';
             });
+        });
+
+        // Handle page visibility change to refresh when tab becomes visible
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                // Page became visible, update timestamp display
+                updateTimestampDisplay();
+            }
         });
     </script>
 </body>
