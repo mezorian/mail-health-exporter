@@ -339,7 +339,7 @@ For each information there is also a time-indicator shown that reports on how ol
 ## Prometheus Alerts for alertmanager
 If you want to get automatically notified (e.g. by e-mail) if your mail-health-exporter exported metrics
 that might observer misbehavior of your mail-server you can configure your prometheus with some alert-rules 
-for mail-health-exporter. Some pre-configured alert-rules for prometheus can be found at [alert_rules.yml](alert_rules.yml)
+for mail-health-exporter. Some pre-configured alert-rules for prometheus can be found at [alert-rules.yml](alert-rules.yml)
 
 For how to use alertmanager with prometheus please refer to https://github.com/prometheus/alertmanager
 
