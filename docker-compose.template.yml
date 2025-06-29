@@ -1,7 +1,7 @@
 version: '3.8'
 
 # Deactivate the following 5 lines if you don't want to use docker secrets
-# but prefer to work with environment variables (maybe not as secure)
+# but prefer to work with environment variables (maybe not be as secure)
 secrets:
   internal_email_password:
     external: true
@@ -11,7 +11,7 @@ secrets:
 services:
   mail-health-exporter:
     build: .
-    image: mail-health-exporter  # Name of the image you want to build
+    image: mezorian/mail-health-exporter:latest
     container_name: mail-health-exporter
     restart: unless-stopped
     ports:

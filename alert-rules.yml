@@ -1,0 +1,188 @@
+groups:
+  - name: mail_health_alerts
+    rules:
+      # Critical: Mail sending completely down
+      - alert: MailSendingDown
+        expr: mail_health_exporter__sending_mails_working == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Mail server cannot send emails"
+          description: "The mail server has been unable to send emails for more than 1 minute"
+
+      # Critical: Mail receiving completely down
+      - alert: MailReceivingDown
+        expr: mail_health_exporter__receiving_mails_working == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Mail server cannot receive emails"
+          description: "The mail server has been unable to receive emails for more than 1 minute"
+
+      # Warning: High failure rate for internal to external sending
+      - alert: HighInternalToExternalSendFailureRate
+        expr: |
+          (
+            rate(mail_health_exporter__send_internal_to_external_failures_total[15m]) /
+            (rate(mail_health_exporter__send_internal_to_external_success_total[15m]) + rate(mail_health_exporter__send_internal_to_external_failures_total[15m]))
+          ) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High failure rate for internal to external mail sending"
+          description: "More than 10% of internal to external mail sends are failing over the last 15 minutes"
+
+      # Warning: High failure rate for external to internal sending
+      - alert: HighExternalToInternalSendFailureRate
+        expr: |
+          (
+            rate(mail_health_exporter__send_external_to_internal_failures_total[15m]) /
+            (rate(mail_health_exporter__send_external_to_internal_success_total[15m]) + rate(mail_health_exporter__send_external_to_internal_failures_total[15m]))
+          ) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High failure rate for external to internal mail sending"
+          description: "More than 10% of external to internal mail sends are failing over the last 15 minutes"
+
+      # Warning: High failure rate for internal to external receiving
+      - alert: HighInternalToExternalReceiveFailureRate
+        expr: |
+          (
+            rate(mail_health_exporter__receive_internal_to_external_failures_total[15m]) /
+            (rate(mail_health_exporter__receive_internal_to_external_success_total[15m]) + rate(mail_health_exporter__receive_internal_to_external_failures_total[15m]))
+          ) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High failure rate for internal to external mail receiving"
+          description: "More than 10% of internal to external mail receives are failing over the last 15 minutes"
+
+      # Warning: High failure rate for external to internal receiving
+      - alert: HighExternalToInternalReceiveFailureRate
+        expr: |
+          (
+            rate(mail_health_exporter__receive_external_to_internal_failures_total[15m]) /
+            (rate(mail_health_exporter__receive_external_to_internal_success_total[15m]) + rate(mail_health_exporter__receive_external_to_internal_failures_total[15m]))
+          ) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High failure rate for external to internal mail receiving"
+          description: "More than 10% of external to internal mail receives are failing over the last 15 minutes"
+
+      # Critical: Any send failures detected
+      - alert: MailSendFailuresDetected
+        expr: |
+          increase(mail_health_exporter__send_internal_to_external_failures_total[15m]) > 0 or
+          increase(mail_health_exporter__send_external_to_internal_failures_total[15m]) > 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Mail send failures detected"
+          description: "Mail send failures have been detected in the last 15 minutes"
+
+      # Critical: Any receive failures detected
+      - alert: MailReceiveFailuresDetected
+        expr: |
+          increase(mail_health_exporter__receive_internal_to_external_failures_total[15m]) > 0 or
+          increase(mail_health_exporter__receive_external_to_internal_failures_total[15m]) > 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Mail receive failures detected"
+          description: "Mail receive failures have been detected in the last 15 minutes"
+
+      # Warning: High roundtrip latency
+      - alert: HighMailRoundtripLatency
+        expr: mail_health_exporter__roundtrip_duration_seconds > 300
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High mail roundtrip latency"
+          description: "Mail roundtrip duration is {{ $value }} seconds, which is above the 5-minute threshold"
+
+      # Critical: Very high roundtrip latency
+      - alert: VeryHighMailRoundtripLatency
+        expr: mail_health_exporter__roundtrip_duration_seconds > 600
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Very high mail roundtrip latency"
+          description: "Mail roundtrip duration is {{ $value }} seconds, which is above the 10-minute threshold"
+
+      # Warning: Poor spam score
+      - alert: PoorSpamScore
+        expr: mail_health_exporter__spam_score < 9
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Poor spam score detected"
+          description: "Mail spam score is {{ $value }}, which may indicate deliverability issues (10 is best, 9+ is good)"
+
+      # Critical: Very poor spam score
+      - alert: VeryPoorSpamScore
+        expr: mail_health_exporter__spam_score < 7
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Very poor spam score detected"
+          description: "Mail spam score is {{ $value }}, which likely indicates serious deliverability issues (10 is best)"
+
+      # Warning: Stale send/receive check data
+      - alert: StaleMailHealthData
+        expr: (time() - mail_health_exporter__last_send_receive_check_timestamp) > 900
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Mail health check data is stale"
+          description: "The last send/receive check was {{ $value | humanizeDuration }} ago, indicating the health check may not be running (expected every 5 minutes)"
+
+      # Warning: Stale spam score check data
+      - alert: StaleSpamScoreData
+        expr: (time() - mail_health_exporter__last_spam_score_check_timestamp) > 32400
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Spam score check data is stale"
+          description: "The last spam score check was {{ $value | humanizeDuration }} ago, indicating the spam check may not be running (expected every 8 hours)"
+
+      # Info: No mail activity detected
+      - alert: NoMailActivity
+        expr: |
+          (
+            rate(mail_health_exporter__send_internal_to_external_success_total[1h]) == 0 and
+            rate(mail_health_exporter__send_external_to_internal_success_total[1h]) == 0 and
+            rate(mail_health_exporter__receive_internal_to_external_success_total[1h]) == 0 and
+            rate(mail_health_exporter__receive_external_to_internal_success_total[1h]) == 0
+          )
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "No mail activity detected"
+          description: "No successful mail sends or receives have been detected in the last hour"
+
+      # Critical: Mail exporter is down (no metrics)
+      - alert: MailHealthExporterDown
+        expr: up{job=~".*mail.*health.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Mail health exporter is down"
+          description: "The mail health exporter has been down for more than 2 minutes"
